@@ -1,4 +1,4 @@
-import pygame, pygame_menu, json, subprocess
+import pygame, pygame_menu, json, subprocess, math
 from pygame_menu import themes
 
 import pygame_menu.widgets
@@ -26,19 +26,19 @@ def ConfirmClick():
 
 def StorePeople(Value):
     global PEOPLE
-    PEOPLE = Value
+    PEOPLE = math.floor(Value)
 def StoreWidth(Value):
     global GWIDTH
-    GWIDTH = Value
+    GWIDTH = math.floor(Value)
 def StoreHeight(Value):
     global GHEIGHT
-    GHEIGHT = Value
+    GHEIGHT = math.floor(Value)
 def StoreSpeed(Value):
     global GSPEED
-    GSPEED = Value
+    GSPEED = math.floor(Value)
 def StoreMaxLevels(Value):
     global MLEVELS
-    MLEVELS = Value
+    MLEVELS = math.floor(Value)
 
 mainmenu = pygame_menu.Menu("Menu", 600, 400, theme=themes.THEME_BLUE)
 mainmenu.add.button("Play", options)

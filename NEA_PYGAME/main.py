@@ -41,7 +41,7 @@ class Cell:
    def __init__(self):
        self.Weight = int(0)
        self.Coordinates = ()
-       self.Previousvertex = 0
+       self.Previousvertex = (0,0)
        self.ObjType = None
 
    def SetCoordinates(self, Tup):
@@ -50,7 +50,7 @@ class Cell:
    def SetWeight(self, W):
        self.Weight = int(W)
 
-   def SetPreviousVertex(self, Vertex):
+   def SetPrevious(self, Vertex):
        self.Previousvertex = Vertex
 
    def SetType(self, NewType):
@@ -79,6 +79,7 @@ class Person:
         self.Colour = PERSON
         self.Location = tuple()
         self.DistanceTraveled = 0
+        self.ColourMultiplier = (0,0,0)
     
     def __del__(self):
         print("Person destroyed")
@@ -96,7 +97,7 @@ class Person:
 
     def GetPrevious(self):
         return self.Location #When asked for previous just return itself
-    def SetPreviousVertex(self, v):
+    def SetPrevious(self, v):
         return
 
     def GetWeight(self):
@@ -117,7 +118,13 @@ class Person:
     def Destroy(self):
         if self in PeopleList:    
             PeopleList.remove(self)
+            #PeoplePositions.remove(self.Location)
         del self
+
+    def SetMultiplier(self, Nm):
+        self.ColourMultiplier = Nm
+    def GetNewColour(self):
+        return tuple(map(add, self.ObjType, self.ColourMultiplier))
         
 
 #--INITIALISE ALL GRIDS, BOARDS, DICTIONARIES--#
@@ -158,6 +165,7 @@ FLOORWEIGHT = 1
 WALLWEIGHT = 500
 FIREWEIGHT = 300
 CONNECTORWEIGHT = 2
+PEOPLEWEIGHT = 10
 
 #For drawing:
 BORDER = 2* math.sqrt(2*OFFSET**2) # The first 2* is just a bigger Offset
@@ -172,6 +180,9 @@ GameRunning = False
 Count = 0
 
 PeopleList = []
+PeoplePositions = set()
+NewPeoplePositions = set()
+
 DJQ = Queue() #Create a queue
 
 #Level variables
@@ -188,7 +199,7 @@ LayerConnectors = {}#The points at which you can go between the layers
 
 PathWeights = {} #How far is each node from the root
 
-Visited = [] #Array containing order visited by algorithm
+Visited = set() #Array containing order visited by algorithm
 Path = [] #Array that shows the nodes visited to get from one point to another
 
 pygame.init()
@@ -381,31 +392,30 @@ def SetVars(RepeatLevel):
         if((x+1) <= (AREA) and x % GRIDWIDTH != 0 and (x-GRIDWIDTH) >= 1):
             Graph[(RepeatLevel, x)][(RepeatLevel, x+1-GRIDWIDTH)] = BoardLevels[RepeatLevel][(x+1-GRIDWIDTH)-1].GetWeight()
 
-def RefreshConnections():
+def RefreshConnections(Cell):
     global Graph, LayerConnectors
 
-    for StartNode in LayerConnectors:
-        TargetList = LayerConnectors[StartNode]
-        for Targets in TargetList:
-            TargetLevel = Targets[0]
-            TargetNumber = Targets[1]
-            TargetWeight = Targets[2]
+    TargetList = LayerConnectors[Cell]
+    for Targets in TargetList:
+        TargetLevel = Targets[0]
+        TargetNumber = Targets[1]
+        TargetWeight = Targets[2]
 
-            TargetCell = (TargetLevel,TargetNumber)
+        TargetCell = (TargetLevel,TargetNumber)
 
-            if StartNode not in Graph:
-                Graph[StartNode] = {}
+        if Cell not in Graph:
+            Graph[Cell] = {}
 
-            if TargetCell not in Graph:
-                Graph[TargetCell] = {}
+        if TargetCell not in Graph:
+            Graph[TargetCell] = {}
 
-            Graph[StartNode][TargetCell] = TargetWeight
+        Graph[Cell][TargetCell] = TargetWeight
 
 def ClearPath():
     global PathWeights, DJQ, Visited, Path, BoardLevels
 
     DJQ.Destroy()
-    Visited = []
+    Visited.clear()
     Path = []
 
     for Level in range(1, len(BoardLevels)):
@@ -414,7 +424,7 @@ def ClearPath():
                 cell.SetType(FLOORCOLOUR)
                 cell.SetWeight(FLOORWEIGHT) #Reset paths starts and destinatoins to floor / pixel
                 
-            cell.SetPreviousVertex(0)
+            #cell.SetPrevious(0)
 
 def UpdateWeights(GridNumberAndLevel):
     global Graph, BoardLevels
@@ -452,7 +462,9 @@ Ticker = 0 #This is going to increase by 1 each time the function is called
 Tipper = (TICKRATE) * (GAMESPEED) #When the Ticker = Tipper * GAMESPEED then we know the game should update as it has been enough time
 
 def CreateObject(CurrentCell, Type):
+    global FirePoints, FireStarted, FireFront, PeoplePositions
     CLevel, CNumber = (CurrentLevel,CurrentCell.GetPosition())
+
     if Type == WALL:
         Current_Cell = BoardLevels[CellLevel][CellNumber-1]
         Current_Cell.SetType(WALL)
@@ -464,10 +476,20 @@ def CreateObject(CurrentCell, Type):
             BoardLevels[CurrentLevel][CNumber-1].SetType(CONNECTOR)
             LayerConnectors[(CurrentLevel+1, CNumber)] = [(CurrentLevel, CNumber, CONNECTORWEIGHT)]
             BoardLevels[CurrentLevel+1][CNumber-1].SetType(CONNECTOR)
+            RefreshConnections((CurrentLevel, CNumber)) #This connects everything together for dijkstras
     elif Type == PERSON:
         NewPerson = Person()
         PeopleList.append(NewPerson)
         NewPerson.SetPosition((CLevel, CNumber))
+        NewPerson.SetMultiplier((-random.randint(0,50),-random.randint(0,50),-random.randint(0,50)))
+        PeoplePositions.add(NewPerson.GetPosition())
+    elif Type == FIRE:
+        BoardLevels[CurrentLevel][CNumber-1].SetType(FIRE)
+        BoardLevels[CurrentLevel][CNumber-1].SetWeight(FIREWEIGHT)
+        UpdateWeights((CurrentLevel,CNumber))
+        FireStarted = True
+        FirePoints = [(CurrentLevel,CNumber)]
+        FireFront = [(CurrentLevel,CNumber)]
 
 def CreateConnectors(AmountOfConnectors):
     global LayerConnectors
@@ -541,7 +563,7 @@ def CreateWalls():
     
     for WallCell in WallPositions: #Draw The walls (this should happen at the end of create walls)
         WLevel, WNumber = WallCell
-        if WNumber < 400 and WNumber >= 1:
+        if WNumber < 400 and WNumber >= 1 and BoardLevels[WLevel][WNumber] not in [STARTCOLOUR, DESTINATION]:
             Current_Cell = BoardLevels[WLevel][WNumber-1]
             Current_Cell.SetType(WALL)
             Current_Cell.SetWeight(WALLWEIGHT)
@@ -599,10 +621,54 @@ def UpdateFire(StartPosition): #StartPosition should only be used once
 
     FireFront = NewFront
 
-def UpdatePeople():
+def UpdateDijkstras():
     global PeopleList, End, Path, FirePoints
 
+    for CurrentPerson in PeopleList:
+        CurrentPosition = CurrentPerson.GetPosition()
+        PeoplePositions.add(CurrentPosition)
+        
+        CLevel, CNumber = CurrentPosition
+        NextStep = BoardLevels[CLevel][CNumber-1].GetPrevious()
+
+        NewPeoplePositions.add(NextStep)
+
     InitialiseDJ(End)
+
+def UpdatePeople():
+    global PeopleList, End, Path, FirePoints, PeoplePositions, NewPeoplePositions
+
+    PeoplePositions = set(p.GetPosition() for p in PeopleList)
+    reserved = set()
+
+    DeadPeople = []
+    
+    for CurrentPerson in PeopleList:
+        CurrentPosition = CurrentPerson.GetPosition()
+
+        if CurrentPosition in FirePoints:#They lwk on sum fire
+            DeadPeople.append(CurrentPerson)
+            continue
+
+        CLevel, CNumber = CurrentPosition
+        NextStep = GetNextStep(CurrentPosition)
+
+        if NextStep != (0,0) and NextStep not in PeoplePositions and NextStep not in reserved and NextStep != None:
+            reserved.add(NextStep)
+            
+            CurrentPerson.AddToDistance(BoardLevels[NextStep[0]][NextStep[1]-1].GetWeight())
+            #Change position
+            CurrentPerson.SetPosition(NextStep)
+            
+            #print(f"Current Position is {CurrentPerson.GetPosition()} and path is {Path}")
+            if NextStep == End:
+                #They have arrived at the destination
+                DeadPeople.append(CurrentPerson)
+                continue#This updates the person positions so they can refresh faster and look as if they are moving more
+
+    for person in DeadPeople:
+        print(f"Person died with a weight of {person.GetDistance()}")
+        person.Destroy()
 
 
 
@@ -641,7 +707,7 @@ def DJ(Cell):
             PathWeights[Neighbour_Position] = Revised_Weight
 
             Level, Num = Neighbour_Position
-            BoardLevels[Level][Num-1].SetPreviousVertex(Current_Node)
+            BoardLevels[Level][Num-1].SetPrevious(Current_Node)
 
             DJQ.enqueue(Neighbour_Cell, Revised_Weight)
     #print(f"Current Node: {Current_Node}, Weight: {PathWeights[Current_Node]}")
@@ -652,22 +718,22 @@ def InitialiseDJ(TExit):
 
     Level, CellNumber = TExit
 
+    # Reset path weights and queue
     for Level in range(1, MAXBoardLevels + 1):
         for cell in range(1, AREA + 1):
             PathWeights[(Level, cell)] = math.inf
-            BoardLevels[Level][cell-1].SetPreviousVertex(0)
-    
-    # Reset path weights and queue
+            #BoardLevels[Level][cell-1].SetPrevious((0,0))
+
     PathWeights[TExit] = 0
     DJQ.Destroy()
     DJQ.enqueue(TExit, 0) 
-    Visited = []
+    Visited.clear()
 
     while not DJQ.isEmpty():
         CurrentNodeNum = DJQ.dequeue() 
         if CurrentNodeNum in Visited:
             continue
-        Visited.append(CurrentNodeNum)
+        Visited.add(CurrentNodeNum)
 
         if CurrentNodeNum not in Graph:
             continue
@@ -679,13 +745,19 @@ def InitialiseDJ(TExit):
 
             if NeighbourLevel < 1 or NeighbourLevel > MAXBoardLevels or NeighbourNumber < 1 or NeighbourNumber > AREA or isinstance(BoardLevels[NeighbourLevel][NeighbourNumber-1], Person):
                 continue
-
-            NeighborCell = BoardLevels[NeighbourLevel][NeighbourNumber-1]  
-            NewDistance = Current_Distance + NeighborCell.GetWeight()     
             
+            NeighborCell = BoardLevels[NeighbourLevel][NeighbourNumber-1]  
+
+            NeighbourWeight = NeighborCell.GetWeight()
+
+            #if (NeighbourLevel, NeighbourNumber) in PeoplePositions: #If there is a person on a cell, make the cell harder to get through
+                #NeighbourWeight += PEOPLEWEIGHT
+
+            NewDistance = Current_Distance + NeighbourWeight
+
             if NewDistance < PathWeights.get(Neighbour, math.inf):
                 PathWeights[Neighbour] = NewDistance
-                NeighborCell.SetPreviousVertex(CurrentNodeNum)
+                NeighborCell.SetPrevious(CurrentNodeNum)
                 
                 DJQ.enqueue(Neighbour, NewDistance)
 
@@ -701,6 +773,21 @@ def GetPrevious(Node):
     
     Path.reverse()
     return Path
+
+def GetNextStep(Cell):
+    global PathWeights
+    BestCell = None
+    BestW = PathWeights[Cell]
+
+    if BestW ==  math.inf:
+        return None
+
+    for CurrentW in Graph[Cell]:
+        if PathWeights.get(CurrentW, math.inf) < BestW:
+            BestWeight = PathWeights[CurrentW]
+            BestCell = CurrentW
+    
+    return BestCell
 
 def FindRoute(End, Root):
     if Root is None or End is None:
@@ -720,14 +807,14 @@ def FindRoute(End, Root):
             if cell.GetType() not in CONSTANTTILE:
                 cell.SetType(FLOORCOLOUR)
                 cell.SetWeight(FLOORWEIGHT)
-            cell.SetPreviousVertex(0)
+            #cell.SetPrevious(0)
     
     if Root:
         r_lvl, r_num = Root
-        BoardLevels[r_lvl][r_num-1].SetPreviousVertex(0)
+        BoardLevels[r_lvl][r_num-1].SetPrevious(0)
     
     DJQ.Destroy()
-    Visited = []
+    Visited.clear()
     Path = []
 
     for lvl in range(1, MAXBoardLevels+1):
@@ -840,9 +927,9 @@ def DrawGrid(TopLevel):
                 elif Type[:3] != PERSON:
                     DrawCube((x- (RepeatLevel-1),y - (RepeatLevel-1)), 0.6, 0.8, Type)
 
-                for CurPerson in PeopleList:
+                for CurPerson in PeopleList: #Iterate and draw each person in this level
                     if CurPerson.GetPosition() == (RepeatLevel, Cell_Index+1):
-                        DrawCube((x - (RepeatLevel-1),y - (RepeatLevel-1)), 2, 0.5, (*PERSON, Alpha))
+                        DrawCube((x - (RepeatLevel-1),y - (RepeatLevel-1)), 2, 0.5, (*CurPerson.GetNewColour(), Alpha))
 
         Screen.blit(GridSurface, (0,0)) #Prints the grid blocks onto the screen
         Screen.blit(CubeSurface, (0,0))#Prints the cubes onto the screen
@@ -856,12 +943,13 @@ SetEnd((1, GRIDWIDTH+2)) # This is the "Fire exit"
 
 #Stuff that happens first but never again
 CreateWalls()
-#CreateConnectors(1) #Put in the amount per layer
+CreateConnectors(1) #Put in the amount per layer
+for Cell in LayerConnectors: #For each connector - fresh dijksrtas weights
+    RefreshConnections(Cell)
+
 #CreatePeople(PEOPLEAMOUNT) #Create an amount of people
 
 Root = RandomPos()
-
-RefreshConnections() #This connects everything together for dijkstras
 
 running = True
 while running:
@@ -880,30 +968,33 @@ while running:
         if not GameRunning:
             Keys = pygame.key.get_pressed()
 
-            Constants = [DESTINATION, STARTCOLOUR, FIRE, WALL] #Things to NOT overwrite when clicking
+            Constants = [DESTINATION, STARTCOLOUR] #Things to NOT overwrite when clicking
         
             if Keys[pygame.K_w]:
                 MousePosition = pygame.mouse.get_pos()
                 SelectedCell = (CurrentLevel,ConvertMouseToBox(MousePosition))
                 CellLevel, CellNumber = SelectedCell
                 if SelectedCell[1] != None:
-                    if BoardLevels[CellLevel][CellNumber-1].GetType() not in Constants:
+                    if BoardLevels[CellLevel][CellNumber-1].GetType() not in Constants and BoardLevels[CellLevel][CellNumber-1].GetType() != WALL and ((CellLevel,CellNumber) not in PeoplePositions):
                         CreateObject(BoardLevels[CellLevel][CellNumber-1], STATES[CurrentDrawState])
             elif Keys[pygame.K_d]:
                 MousePosition = pygame.mouse.get_pos()
                 SelectedCell = (CurrentLevel,ConvertMouseToBox(MousePosition))
                 CellLevel, CellNumber = SelectedCell
-                if SelectedCell[1] != None and BoardLevels[CellLevel][CellNumber].GetType() not in Constants:
-                    Current_Cell = BoardLevels[CellLevel][CellNumber]
+                if CellNumber != None and BoardLevels[CellLevel][CellNumber-1].GetType() not in Constants:
+                    Current_Cell = BoardLevels[CellLevel][CellNumber-1]
                     Current_Cell.SetType(FLOORCOLOUR)
                     Current_Cell.SetWeight(FLOORWEIGHT)
                     UpdateWeights(SelectedCell)
+                    for CurrentPerson in PeopleList: #This might be laggy - #Also get rid of people in those positions
+                        if CurrentPerson.GetPosition() == (CellLevel,CellNumber):
+                            CurrentPerson.Destroy()
 
             KeysDOWN = pygame.key.get_pressed()
             if KeysDOWN[pygame.K_RETURN]: # Enter key pressed - move on to what to draw
-                if CurrentDrawState <= len(STATES)-1:
+                if CurrentDrawState+1 < len(STATES):
                     CurrentDrawState +=1
-                elif CurrentDrawState > len(STATES)-1:
+                elif CurrentDrawState+1 >= len(STATES):
                     GameRunning = True
     
     Screen.fill(BGCOLOUR) #Sets the background 
@@ -911,41 +1002,16 @@ while running:
 
     DrawGrid(CurrentLevel) #Draws the Grid of the current level we are on and all the levels below it
     
-    if GameRunning:
+    if GameRunning: #When the drawning stage is done
         if Ticker >= Tipper: #Anything that gets called here happens at the same time at a set interval
             Count += 1
             if Count == 1:
                 UpdateFire((MAXBoardLevels,RandomPos()[1])) # updates / starts a fire
 
             elif Count == 2:
+                UpdateDijkstras()
                 UpdatePeople()
                 Count = 0
-        
-            DeadPeople = []
-
-            for CurrentPerson in PeopleList:        
-                CurrentPosition = CurrentPerson.GetPosition()
-
-                if CurrentPosition in FirePoints:#They lwk on sum fire
-                    DeadPeople.append(CurrentPerson)
-                    continue
-
-                CLevel, CNumber = CurrentPosition
-                NextStep = BoardLevels[CLevel][CNumber-1].GetPrevious()
-
-                if NextStep != 0:
-                    CurrentPerson.AddToDistance(BoardLevels[NextStep[0]][NextStep[1]-1].GetWeight())
-                    #Change position
-                    CurrentPerson.SetPosition(NextStep)
-
-                    #print(f"Current Position is {CurrentPerson.GetPosition()} and path is {Path}")
-                    if NextStep == End:
-                        #They have arrived at the destination
-                        DeadPeople.append(CurrentPerson)
-                        continue#This updates the person positions so they can refresh faster and look as if they are moving more
-            for person in DeadPeople:
-                print(f"Person died with a weight of {person.GetDistance()}")
-                person.Destroy()
 
             Ticker = 0
 
@@ -954,5 +1020,5 @@ while running:
     Clock.tick(TICKRATE) #Set refresh rate
     
 
-
+    
 pygame.quit()
