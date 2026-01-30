@@ -1,4 +1,4 @@
-import random, pygame, math, time, heapq, json
+import random, pygame, math, time, heapq, json, sys
 from operator import add
 #---CLASSES---#
 
@@ -126,6 +126,7 @@ class Person:
     def Destroy(self):
         if self in PeopleList:
             PeopleList.remove(self)
+            PeoplePositions.discard(self.GetPosition())
         del self
 
     def SetMultiplier(self, Nm):
@@ -201,8 +202,11 @@ BORDER = 2* math.sqrt(2*OFFSET**2) # The first 2* is just a bigger Offset
 TICKRATE = 60
 GAMESPEED = Config["GSPEED"] #How many seconds before it updates
 #PEOPLEAMOUNT = Config["PEOPLE"]
+
 CurrentDrawState = 0
 STATES = [WALL, CONNECTOR, PERSON, FIRE]
+HIGHLIGHTED = tuple(map(add, STATES[CurrentDrawState], (-10,-10,-10)))
+
 GameRunning = False
 Count = 0
 
@@ -225,8 +229,17 @@ BoardLevels = [None] + [[] for _ in range(MAXBoardLevels)] #Array of availiable 
 CurrentLevel = 1
 
 #Resolution calculations
-ScreenWIDTH = math.ceil(GRIDWIDTH * (math.sqrt((SQUAREWIDTH * SQUAREWIDTH) + (SQUAREHEIGHT * SQUAREHEIGHT)) + OFFSET)) #CALCULATES THE DIAGONALWIDTH OF SQUARE AND BASES SCREEN OFF THAT
-ScreenHEIGHT = math.ceil(GRIDHEIGHT * (math.sqrt((SQUAREWIDTH * SQUAREWIDTH) + (SQUAREHEIGHT * SQUAREHEIGHT)) + OFFSET) *0.6) + (SQUAREHEIGHT*(MAXBoardLevels)) #IF ISSUE WITH SCALING TRY REMOVING /2
+#ScreenWIDTH = math.ceil(GRIDWIDTH * (math.sqrt((SQUAREWIDTH * SQUAREWIDTH) + (SQUAREHEIGHT * SQUAREHEIGHT)) + OFFSET)) #CALCULATES THE DIAGONALWIDTH OF SQUARE AND BASES SCREEN OFF THAT
+#ScreenHEIGHT = math.ceil(GRIDHEIGHT * (math.sqrt((SQUAREWIDTH * SQUAREWIDTH) + (SQUAREHEIGHT * SQUAREHEIGHT)) + OFFSET) *0.6) + (SQUAREHEIGHT*(MAXBoardLevels)) #IF ISSUE WITH SCALING TRY REMOVING /2
+
+ScreenWIDTH = int(
+    (GRIDWIDTH + GRIDHEIGHT) * (SQUAREWIDTH // 2 + OFFSET)
+)
+
+ScreenHEIGHT = int(
+    (GRIDWIDTH + GRIDHEIGHT) * (SQUAREHEIGHT // 2 + OFFSET)
+    + MAXBoardLevels * SQUAREHEIGHT
+)
 
 Graph ={}# Graph variable, stored as num of box (1-range): [num of neighbour box (1-range), weight of relationship]
 LayerConnectors = {}#The points at which you can go between the layers
@@ -249,7 +262,7 @@ def DrawFloor(Position):
     PolyPoints = [
         (XPos, YPos - 2*OFFSET),
         ((ProjISO((GRIDWIDTH,1))[0] + (SQUAREWIDTH // 2) + BORDER)  , (ProjISO((1,GRIDHEIGHT))[1]) + (SQUAREHEIGHT // 2)), #Right point
-        (XPos, ProjISO((GRIDHEIGHT, GRIDWIDTH))[1] + SQUAREHEIGHT + 2*OFFSET),
+        (XPos, ProjISO((GRIDWIDTH, GRIDHEIGHT))[1] + SQUAREHEIGHT + 2*OFFSET),
         ((ProjISO((1,GRIDHEIGHT))[0] - (SQUAREWIDTH // 2) - BORDER) , (ProjISO((1,GRIDHEIGHT))[1]) + (SQUAREHEIGHT // 2)) # left
     ]
     pygame.draw.polygon(Screen, Colour, PolyPoints)
@@ -265,7 +278,7 @@ def DrawBase():
     XPos, YPos = ProjISO(DefaultPosition)
     PolyPoints = [
             ((ProjISO((1,GRIDHEIGHT))[0] - (SQUAREWIDTH // 2) - BORDER) , (ProjISO((1,GRIDHEIGHT))[1]) + (SQUAREHEIGHT // 2)), # Top Left
-            (XPos, ProjISO((GRIDHEIGHT, GRIDWIDTH))[1] + SQUAREHEIGHT + 2*OFFSET), #Top right
+            (XPos, ProjISO((GRIDWIDTH, GRIDHEIGHT))[1] + SQUAREHEIGHT + 2*OFFSET), #Top right
             (XPos, ScreenHEIGHT), #Bottom Right
             ((ProjISO((1,GRIDHEIGHT))[0] - (SQUAREWIDTH // 2) - BORDER) , ScreenHEIGHT) # Bottom Left
         ]
@@ -276,7 +289,7 @@ def DrawBase():
     XPos, YPos = ProjISO(DefaultPosition)
     PolyPoints = [
             ((ProjISO((GRIDWIDTH,1))[0] + (SQUAREWIDTH // 2) + BORDER) , (ProjISO((1,GRIDHEIGHT))[1]) + (SQUAREHEIGHT // 2)), # Top Right
-            (XPos, ProjISO((GRIDHEIGHT, GRIDWIDTH))[1] + SQUAREHEIGHT + 2*OFFSET), #Top Left
+            (XPos, ProjISO((GRIDWIDTH, GRIDHEIGHT))[1] + SQUAREHEIGHT + 2*OFFSET), #Top Left
             (XPos, ScreenHEIGHT), #Bottom Left
             ((ProjISO((GRIDWIDTH,1))[0] + (SQUAREWIDTH // 2) + BORDER) , ScreenHEIGHT) # Bottom Right
         ]
@@ -496,13 +509,14 @@ Ticker = 0 #This is going to increase by 1 each time the function is called
 Tipper = (TICKRATE) * (GAMESPEED) #When the Ticker = Tipper * GAMESPEED then we know the game should update as it has been enough time
 
 def EndGameAndShowStats():
-    global DeadPeople, PeopleWhoDidNotMakeIt, PeopleWhoMadeIt, TimePassed, TotalPeopleAmount, running
+    global DeadPeople, PeopleWhoDidNotMakeIt, PeopleWhoMadeIt, TimePassed, TotalPeopleAmount, running, GameRunning
 
     print("The game has ended!")
     print(f"The total amount of people at the start was {TotalPeopleAmount}")
     print(f"The time passed was {TimePassed} and in that time {len(PeopleWhoDidNotMakeIt)} people didnt escape the fire\n and {len(PeopleWhoMadeIt)} who escaped!")
 
     running = False
+    pygame.quit(); sys.exit()
 
 def CreateText(TextToShow, Location, Size):
     global TextSurface, font, TextLocation
@@ -614,7 +628,7 @@ def CreateWalls():
     
     for WallCell in WallPositions: #Draw The walls (this should happen at the end of create walls)
         WLevel, WNumber = WallCell
-        if WNumber < AREA and WNumber >= 1 and BoardLevels[WLevel][WNumber-1] not in [STARTCOLOUR, DESTINATION]:
+        if WNumber < AREA and WNumber >= 1 and BoardLevels[WLevel][WNumber-1].GetType() not in [STARTCOLOUR, DESTINATION]:
             Current_Cell = BoardLevels[WLevel][WNumber-1]
             Current_Cell.SetType(WALL)
             Current_Cell.SetWeight(WALLWEIGHT)
@@ -798,7 +812,7 @@ def InitialiseDJ(TExit):
         for Neighbour in Graph[CurrentNodeNum]:
             NeighbourLevel, NeighbourNumber = Neighbour
 
-            if NeighbourLevel < 1 or NeighbourLevel > MAXBoardLevels or NeighbourNumber < 1 or NeighbourNumber > AREA or isinstance(BoardLevels[NeighbourLevel][NeighbourNumber-1], Person):
+            if NeighbourLevel < 1 or NeighbourLevel > MAXBoardLevels or NeighbourNumber < 1 or NeighbourNumber > AREA or isinstance(BoardLevels[NeighbourLevel][NeighbourNumber-1].GetType(), Person):
                 continue
             
             NeighborCell = BoardLevels[NeighbourLevel][NeighbourNumber-1]  
@@ -1004,7 +1018,6 @@ for z in range (1, len(BoardLevels)):
 SetEnd((1, GRIDWIDTH+2)) # This is the "Fire exit"
 
 HighlightedCell = None #This is set to none so that I can overwrite it later to show which cell is hovered on
-HIGHLIGHTED = tuple(map(add, STATES[CurrentDrawState], (-10,-10,-10)))
 
 #Stuff that happens first but never again
 CreateWalls()
@@ -1081,21 +1094,21 @@ while running:
                         if CurrentPerson.GetPosition() == (CellLevel,CellNumber):
                             CurrentPerson.Destroy()
 
-            KeysDOWN = pygame.key.get_pressed()
-            if KeysDOWN[pygame.K_RETURN]: # Enter key pressed - move on to what to draw
-                if HighlightedCell != None:
-                    OldCellLevel, OldCellNumber = HighlightedCell #The old cell
-                    if BoardLevels[OldCellLevel][OldCellNumber-1].GetType() == HIGHLIGHTED:
-                        BoardLevels[OldCellLevel][OldCellNumber-1].SetType(FLOORCOLOUR)
-                    HighlightedCell = None
-                
-                if CurrentDrawState+1 < len(STATES):
-                    CurrentDrawState +=1
-                    HIGHLIGHTED = tuple(map(add, STATES[CurrentDrawState], (-10,-10,-10)))
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN: # Enter key pressed - move on to what to draw
+                    if HighlightedCell != None:
+                        OldCellLevel, OldCellNumber = HighlightedCell #The old cell
+                        if BoardLevels[OldCellLevel][OldCellNumber-1].GetType() == HIGHLIGHTED:
+                            BoardLevels[OldCellLevel][OldCellNumber-1].SetType(FLOORCOLOUR)
+                        HighlightedCell = None
+                    
+                    if CurrentDrawState+1 < len(STATES):
+                        CurrentDrawState +=1
+                        HIGHLIGHTED = tuple(map(add, STATES[CurrentDrawState], (-10,-10,-10)))
 
-                elif CurrentDrawState+1 >= len(STATES):
-                    GameRunning = True
-                    CreateText("Fire is coming, Run!", (ScreenWIDTH//15, ScreenHEIGHT//12), 60)
+                    elif CurrentDrawState+1 >= len(STATES):
+                        GameRunning = True
+                        CreateText("Fire is coming, Run!", (ScreenWIDTH//15, ScreenHEIGHT//12), 60)
     
     Screen.fill(BGCOLOUR) #Sets the background 
     
@@ -1113,13 +1126,13 @@ while running:
                 UpdatePeople()
                 TimePassed += 1
                 Count = 0
+            
+            if len(DeadPeople) == TotalPeopleAmount:
+                EndGameAndShowStats()
 
             Ticker = 0
 
         Ticker += 1 #increment the ticker so we can see when to update
-    
-        if len(DeadPeople) == TotalPeopleAmount:
-            EndGameAndShowStats()
 
     pygame.display.flip() #Refresh screen
     Clock.tick(TICKRATE) #Set refresh rate

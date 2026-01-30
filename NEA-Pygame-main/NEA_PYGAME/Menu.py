@@ -27,12 +27,10 @@ def ConfirmClick():
 def StorePeople(Value):
     global PEOPLE
     PEOPLE = math.floor(Value)
-def StoreWidth(Value):
-    global GWIDTH
-    GWIDTH = math.floor(Value)
-def StoreHeight(Value):
-    global GHEIGHT
-    GHEIGHT = math.floor(Value)
+def StoreArea(Value):
+    global GWIDTH, GHEIGHT
+    GWIDTH = math.floor(math.sqrt(Value))
+    GHEIGHT = GWIDTH
 def StoreSpeed(Value):
     global GSPEED
     GSPEED = (Value)
@@ -45,14 +43,10 @@ mainmenu.add.button("Play", options)
 mainmenu.add.button("Quit", pygame_menu.events.EXIT)
 
 optionsmenu = pygame_menu.Menu("Options", 600, 400, theme=themes.THEME_BLUE)
-optionsmenu.add.range_slider(title="Grid width",
-    default=GWIDTH,              # Initial value
-    range_values=(int(0), int(50)),   # Min and max values
-    increment=1, onchange=StoreWidth)
-optionsmenu.add.range_slider(title="Grid Height",
-    default=GHEIGHT,              # Initial value
-    range_values=(int(0), int(50)),   # Min and max values
-    increment=1, onchange=StoreHeight)
+optionsmenu.add.range_slider(title="Grid Area",
+    default=GWIDTH*GHEIGHT,              # Initial value
+    range_values=(int(0), int(800)),   # Min and max values
+    increment=20, onchange=StoreArea)
 #optionsmenu.add.range_slider(title="Amount of people",
     #default=PEOPLE,              # Initial value
     #range_values=(int(0), int(50)),   # Min and max values
@@ -85,7 +79,6 @@ while True:
     
     if SettingsConfirmed == True:
         settings = {
-            #"PEOPLE": PEOPLE,
             "GWIDTH": GWIDTH,
             "GHEIGHT": GHEIGHT,
             "GSPEED": GSPEED,
