@@ -734,41 +734,42 @@ def UpdatePeople():
 #--DIJSKTRAS STUFF--#
 
 def DJ(Cell):
-    global BoardLevels
-    global StartNode
-    global PathWeights
+    # global BoardLevels
+    # global StartNode
+    # global PathWeights
    
-    prev = Cell.GetPrevious()
-    if prev != 0:
-        Current_Node = prev
-    else:
-        Cell_Position = Cell.GetPosition()
-        Current_Node = (CurrentLevel, Cell_Position)
+    # prev = Cell.GetPrevious()
+    # if prev != 0:
+    #     Current_Node = prev
+    # else:
+    #     Cell_Position = Cell.GetPosition()
+    #     Current_Node = (CurrentLevel, Cell_Position)
     
-    if Current_Node not in Graph:
-        return
+    # if Current_Node not in Graph:
+    #     return
 
-    Current_Total_Distance = PathWeights[Current_Node]
+    # Current_Total_Distance = PathWeights[Current_Node]
 
-    for Neighbour_Position in Graph[Current_Node]:
-        Neighbour_Level, Neighbour_Number = Neighbour_Position
-        Neighbour_Index = Neighbour_Number-1
+    # for Neighbour_Position in Graph[Current_Node]:
+    #     Neighbour_Level, Neighbour_Number = Neighbour_Position
+    #     Neighbour_Index = Neighbour_Number-1
 
-        if Neighbour_Level > MAXBoardLevels or Neighbour_Index >= len(BoardLevels[Neighbour_Level]):
-            continue #This means SKIP (like break)
+    #     if Neighbour_Level > MAXBoardLevels or Neighbour_Index >= len(BoardLevels[Neighbour_Level]):
+    #         continue #This means SKIP (like break)
 
-        Neighbour_Cell = BoardLevels[Neighbour_Level][Neighbour_Index]
+    #     Neighbour_Cell = BoardLevels[Neighbour_Level][Neighbour_Index]
 
-        Distance_To = Graph[Current_Node][Neighbour_Position]
-        Revised_Weight = Current_Total_Distance + Distance_To
+    #     Distance_To = Graph[Current_Node][Neighbour_Position]
+    #     Revised_Weight = Current_Total_Distance + Distance_To
 
-        if Revised_Weight < PathWeights[Neighbour_Position]:
-            PathWeights[Neighbour_Position] = Revised_Weight
+    #     if Revised_Weight < PathWeights[Neighbour_Position]:
+    #         PathWeights[Neighbour_Position] = Revised_Weight
 
-            Level, Num = Neighbour_Position
-            BoardLevels[Level][Num-1].SetPrevious(Current_Node)
+    #         Level, Num = Neighbour_Position
+    #         BoardLevels[Level][Num-1].SetPrevious(Current_Node)
 
-            DJQ.enqueue(Neighbour_Cell, Revised_Weight)
+    #         DJQ.enqueue(Neighbour_Cell, Revised_Weight)
+    return
 
 def InitialiseDJ(TExit):
     global DJQ, PathWeights
@@ -847,71 +848,72 @@ def GetNextStep(Cell):
     return BestCell
 
 def FindRoute(End, Root):
-    if Root is None or End is None:
-        return
+    # if Root is None or End is None:
+    #     return
 
-    global PathWeights
-    global Visited
-    global DJQ
-    global Path
+    # global PathWeights
+    # global Visited
+    # global DJQ
+    # global Path
 
-    if len(Path) > 0:
-        for Point in Path:
-            lvl, num = Point
-            cell = BoardLevels[lvl][num-1]
-            if Point in LayerConnectors:
-                cell.SetType(CONNECTOR)
-            if cell.GetType() not in CONSTANTTILE:
-                cell.SetType(FLOORCOLOUR)
-                cell.SetWeight(FLOORWEIGHT)
-            #cell.SetPrevious(0)
+    # if len(Path) > 0:
+    #     for Point in Path:
+    #         lvl, num = Point
+    #         cell = BoardLevels[lvl][num-1]
+    #         if Point in LayerConnectors:
+    #             cell.SetType(CONNECTOR)
+    #         if cell.GetType() not in CONSTANTTILE:
+    #             cell.SetType(FLOORCOLOUR)
+    #             cell.SetWeight(FLOORWEIGHT)
+    #         #cell.SetPrevious(0)
     
-    if Root:
-        r_lvl, r_num = Root
-        BoardLevels[r_lvl][r_num-1].SetPrevious(0)
+    # if Root:
+    #     r_lvl, r_num = Root
+    #     BoardLevels[r_lvl][r_num-1].SetPrevious(0)
     
-    DJQ.Destroy()
-    Visited.clear()
-    Path = []
+    # DJQ.Destroy()
+    # Visited.clear()
+    # Path = []
 
-    for lvl in range(1, MAXBoardLevels+1):
-        for cell in range(1, AREA+1):
-            PathWeights[(lvl, cell)] = math.inf
+    # for lvl in range(1, MAXBoardLevels+1):
+    #     for cell in range(1, AREA+1):
+    #         PathWeights[(lvl, cell)] = math.inf
 
-    # set the start node weight
-    PathWeights[Root] = 0
-    InitialiseDJ(Root)
+    # # set the start node weight
+    # PathWeights[Root] = 0
+    # InitialiseDJ(Root)
 
-    Path = GetPrevious(End)
-    #print(f"Full path: {Path}")
+    # Path = GetPrevious(End)
+    # #print(f"Full path: {Path}")
 
-    #Get path to start from a position
-    #print(f"To get from {End} to {Root} you take points: {Path} with weight {PathWeights[End]}")
+    # #Get path to start from a position
+    # #print(f"To get from {End} to {Root} you take points: {Path} with weight {PathWeights[End]}")
 
-    if len(Path) > 0:
-        if Root in Path:
-            rootLevel, rootNumber = Root
-            if rootLevel < len(BoardLevels):
-                if not isinstance(BoardLevels[rootLevel][rootNumber-1], Person):
-                    BoardLevels[rootLevel][rootNumber-1].SetType(STARTCOLOUR)
+    # if len(Path) > 0:
+    #     if Root in Path:
+    #         rootLevel, rootNumber = Root
+    #         if rootLevel < len(BoardLevels):
+    #             if not isinstance(BoardLevels[rootLevel][rootNumber-1], Person):
+    #                 BoardLevels[rootLevel][rootNumber-1].SetType(STARTCOLOUR)
 
-        if End in Path:
-            endLevel, endNumber = End
-            if endLevel < len(BoardLevels):
-                BoardLevels[endLevel][endNumber -1].SetType(DESTINATION)
+    #     if End in Path:
+    #         endLevel, endNumber = End
+    #         if endLevel < len(BoardLevels):
+    #             BoardLevels[endLevel][endNumber -1].SetType(DESTINATION)
         
-        for Point in Path:
-            Level, CellNumber = Point
-            if Point == Root or Point == End:
-                continue
-            Cell_index = CellNumber - 1
+    #     for Point in Path:
+    #         Level, CellNumber = Point
+    #         if Point == Root or Point == End:
+    #             continue
+    #         Cell_index = CellNumber - 1
 
-            if Level >= len(BoardLevels) or Level < 1:
-                continue
-            cell = BoardLevels[Level][Cell_index]
+    #         if Level >= len(BoardLevels) or Level < 1:
+    #             continue
+    #         cell = BoardLevels[Level][Cell_index]
 
-            if cell.GetType() not in CONSTANTTILE:
-                cell.SetType(PATH)
+    #         if cell.GetType() not in CONSTANTTILE:
+    #             cell.SetType(PATH)
+    return
 
 #--PYGAME WINDOW-#
 #Application window set up
