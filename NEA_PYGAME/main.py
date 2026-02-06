@@ -733,7 +733,7 @@ def UpdatePeople():
 
 #--DIJSKTRAS STUFF--#
 
-def DJ(Cell):
+def DJ(Cell): #OBSOLETE
     # global BoardLevels
     # global StartNode
     # global PathWeights
@@ -847,7 +847,7 @@ def GetNextStep(Cell):
     
     return BestCell
 
-def FindRoute(End, Root):
+def FindRoute(End, Root): #OBSOLETE
     # if Root is None or End is None:
     #     return
 
@@ -1130,3 +1130,4 @@ while running:
 
     
 pygame.quit()
+
